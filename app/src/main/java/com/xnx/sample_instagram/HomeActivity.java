@@ -2,42 +2,34 @@ package com.xnx.sample_instagram;
 
 import android.content.Intent;
 import android.database.Cursor;
-import android.database.DataSetObserver;
 import android.net.Uri;
 import android.os.Bundle;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
-import com.google.firebase.storage.UploadTask;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentTransaction;
 import androidx.loader.content.CursorLoader;
 
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Adapter;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.TextView;
 
 import java.io.File;
 
 public class HomeActivity extends AppCompatActivity {
 
-    private static final int GALLERY_CODE = 10;
+    private static final int POSTING_GALLERY_CODE = 10;
+    private static final int USERINFO_GALLERY_CODE = 11;
+    private static final int USERINFO_USERUPDATE_CODE = 12;
+    private static final int USERINFO_USERUPDATE_CLEAR_CODE = 13;
 
     FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
     FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -46,8 +38,9 @@ public class HomeActivity extends AppCompatActivity {
     FragmentManager fragmentManager;
 
     HomeFragment homeFragment;
-    WritingFragment writingFragment;
+    PostingFragment postingFragment;
     UserInfoFragment userInfoFragment;
+    UserUpdateFragment userUpdateFragment;
 
     private ImageView imageView;
     private String imagePath;
@@ -59,13 +52,12 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
 
         homeFragment = new HomeFragment();
-        writingFragment = new WritingFragment();
+        postingFragment = new PostingFragment();
         userInfoFragment = new UserInfoFragment();
+        userUpdateFragment = new UserUpdateFragment();
 
         fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction().add(R.id.container, homeFragment).commit();
-
-        bundle = new Bundle();
 
         BottomNavigationView navView = findViewById(R.id.nav_view);
         navView.setOnNavigationItemSelectedListener(new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -76,7 +68,7 @@ public class HomeActivity extends AppCompatActivity {
                         fragmentManager.beginTransaction().replace(R.id.container, homeFragment).commit();
                         return true;
                     case R.id.navigation_writing:
-                        fragmentManager.beginTransaction().replace(R.id.container, writingFragment).commit();
+                        fragmentManager.beginTransaction().replace(R.id.container, postingFragment).commit();
                         return true;
                     case R.id.navigation_userInfo:
                         fragmentManager.beginTransaction().replace(R.id.container, userInfoFragment).commit();
@@ -90,19 +82,42 @@ public class HomeActivity extends AppCompatActivity {
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        bundle = new Bundle();
 
-        if(requestCode == GALLERY_CODE) {
-            if(data != null) {
-                imagePath = getPath(data.getData());
-                File f = new File(imagePath);
+        switch(requestCode) {
+            case POSTING_GALLERY_CODE:
+                if(data != null) {
+                    imagePath = getPath(data.getData());
+                    File f = new File(imagePath);
 
-                imageView = (ImageView) findViewById(R.id.imageView_writing);
-                imageView.setImageURI(Uri.fromFile(f));
+                    imageView = (ImageView) findViewById(R.id.imageView_writing);
+                    imageView.setImageURI(Uri.fromFile(f));
 
-                bundle.putString("imagePath", imagePath);
-                writingFragment.setArguments(bundle);
-                fragmentManager.beginTransaction().replace(R.id.container, writingFragment).commit();
-            }
+                    bundle.putString("imagePath", imagePath);
+                    postingFragment.setArguments(bundle);
+                    fragmentManager.beginTransaction().replace(R.id.container, postingFragment).commit();
+                }
+                break;
+            case USERINFO_GALLERY_CODE:
+                if(data != null) {
+                    imagePath = getPath(data.getData());
+                    File f = new File(imagePath);
+
+                    imageView = (ImageView) findViewById(R.id.userImageView);
+                    imageView.setImageURI(Uri.fromFile(f));
+
+                    bundle.putString("imagePath", imagePath);
+                    userInfoFragment.setArguments(bundle);
+                    fragmentManager.beginTransaction().replace(R.id.container, userInfoFragment).commit();
+                }
+                break;
+            case USERINFO_USERUPDATE_CODE:
+                Log.e("유저소개글", "화면 전환 전");
+                fragmentManager.beginTransaction().replace(R.id.container, userUpdateFragment).commit();
+                break;
+            case USERINFO_USERUPDATE_CLEAR_CODE:
+                fragmentManager.beginTransaction().replace(R.id.container, userInfoFragment).commit();
+                break;
         }
     }
 

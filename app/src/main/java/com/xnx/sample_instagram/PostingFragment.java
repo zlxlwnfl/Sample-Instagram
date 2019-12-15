@@ -1,18 +1,15 @@
 package com.xnx.sample_instagram;
 
 import android.Manifest;
-import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.loader.content.CursorLoader;
 
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,22 +17,27 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.SetOptions;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
 import java.io.File;
+import java.sql.Ref;
 import java.util.*;
 
-public class WritingFragment extends Fragment {
+public class PostingFragment extends Fragment {
 
-    private static final int GALLERY_CODE = 10;
+    private static final int POSTING_GALLERY_CODE = 10;
 
     FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
     FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -53,7 +55,7 @@ public class WritingFragment extends Fragment {
 
         Intent intent = new Intent(Intent.ACTION_PICK);
         intent.setType(MediaStore.Images.Media.CONTENT_TYPE);
-        getActivity().startActivityForResult(intent, GALLERY_CODE);
+        getActivity().startActivityForResult(intent, POSTING_GALLERY_CODE);
     }
 
     @Override
@@ -82,25 +84,35 @@ public class WritingFragment extends Fragment {
         StorageReference storageRef = storage.getReference();
 
         Uri file = Uri.fromFile(new File(uri));
-        StorageReference riversRef = storageRef.child("images/" + user.getEmail() + "_" + file.getLastPathSegment());
-        UploadTask uploadTask = riversRef.putFile(file);
+        final StorageReference ref = storageRef.child("images/" + user.getEmail() + "_" + file.getLastPathSegment());
+        final UploadTask uploadTask = ref.putFile(file);
 
-        // Register observers to listen for when the download is done or if it fails
-        uploadTask.addOnFailureListener(new OnFailureListener() {
+        Task<Uri> urlTask = uploadTask.continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
             @Override
-            public void onFailure(@NonNull Exception exception) {
-                // Handle unsuccessful uploads
+            public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
+                if (!task.isSuccessful()) {
+                    throw task.getException();
+                }
+
+                // Continue with the task to get the download URL
+                return ref.getDownloadUrl();
             }
-        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+        }).addOnCompleteListener(new OnCompleteListener<Uri>() {
             @Override
-            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                Uri downloadUrl = taskSnapshot.getUploadSessionUri();
+            public void onComplete(@NonNull Task<Uri> task) {
+                if (task.isSuccessful()) {
+                    Uri downloadUri = task.getResult();
 
-                ImageWriting imageWriting = new ImageWriting(
-                        downloadUrl.toString(),
-                        description.getText().toString(),
-                        user.getEmail());
-                db.collection("imageWriting").document(user.getEmail() + Calendar.getInstance() + "_").set(imageWriting);
+                    PostingDTO postingDTO = new PostingDTO(
+                            downloadUri.toString(),
+                            description.getText().toString(),
+                            user.getEmail(),
+                            new Date(), 0);
+                    db.collection("posts").document(user.getEmail() + "_" + new Date()).set(postingDTO);
+                } else {
+                    // Handle failures
+                    // ...
+                }
             }
         });
     }
